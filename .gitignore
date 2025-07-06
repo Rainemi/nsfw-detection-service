@@ -1,19 +1,2 @@
-# Python 
-__pycache__/ 
-*.py[cod] 
- 
-# Node.js 
-node_modules/ 
-npm-debug.log* 
- 
-# Environment variables 
-.env 
- 
-# Logs 
-*.log 
- 
-# Test files 
-test.docx 
-test.zip 
-test-extracted/ 
-*.tmp 
+
+.env
