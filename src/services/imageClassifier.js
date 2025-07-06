@@ -7,8 +7,27 @@ class ImageClassifier {
     
     if (!this.useMockData) {
       const AWS = require('aws-sdk');
-      this.rekognition = new AWS.Rekognition({
-        region: process.env.AWS_REGION || 'us-east-1'
+      
+      // Explicitly configure AWS with credentials
+      const config = {
+        region: process.env.AWS_DEFAULT_REGION || 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        signatureVersion: 'v4'
+      };
+      
+      // Add session token if using temporary credentials (ASIA prefix)
+      if (process.env.AWS_SESSION_TOKEN) {
+        config.sessionToken = process.env.AWS_SESSION_TOKEN;
+      }
+      
+      this.rekognition = new AWS.Rekognition(config);
+      
+      // Log configuration (without sensitive data)
+      console.log('AWS Rekognition configured with:', {
+        region: process.env.AWS_DEFAULT_REGION || 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.substring(0, 10) + '...' : 'NOT SET',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'NOT SET'
       });
     }
     
@@ -21,6 +40,11 @@ class ImageClassifier {
         return this.mockDetection(imageBuffer);
       }
 
+      // Validate image buffer
+      if (!imageBuffer || imageBuffer.length === 0) {
+        throw new Error('Invalid image buffer');
+      }
+
       const params = {
         Image: {
           Bytes: imageBuffer
@@ -28,7 +52,13 @@ class ImageClassifier {
         MinConfidence: NSFW_CONFIDENCE_THRESHOLD
       };
 
+      console.log('Calling AWS Rekognition with image size:', imageBuffer.length);
       const result = await this.rekognition.detectModerationLabels(params).promise();
+      
+      console.log('AWS Rekognition response:', {
+        moderationLabels: result.ModerationLabels.length,
+        labels: result.ModerationLabels.map(l => l.Name)
+      });
       
       return {
         isNSFW: result.ModerationLabels.length > 0,
@@ -42,7 +72,17 @@ class ImageClassifier {
       };
     } catch (error) {
       console.error('Image classification failed:', error);
-      throw new Error(`Image classification failed: ${error.message}`);
+      
+      // Provide more specific error messages
+      if (error.code === 'UnrecognizedClientException') {
+        throw new Error('AWS authentication failed: Invalid credentials');
+      } else if (error.code === 'InvalidImageFormatException') {
+        throw new Error('Invalid image format: Only JPEG and PNG are supported');
+      } else if (error.code === 'AccessDeniedException') {
+        throw new Error('AWS access denied: Check IAM permissions for Rekognition');
+      } else {
+        throw new Error(`Image classification failed: ${error.message}`);
+      }
     }
   }
 
@@ -73,7 +113,7 @@ class ImageClassifier {
     const results = [];
     
     for (const image of images) {
-      console.log('Classifying image:', image.id);
+      console.log('Classifying image:', image.id, 'size:', image.buffer.length);
       const classification = await this.detectNSFWContent(image.buffer);
       results.push({
         imageId: image.id,

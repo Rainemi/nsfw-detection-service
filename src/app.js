@@ -1,4 +1,6 @@
 // src/app.js
+require('dotenv').config();
+
 console.log('Starting NSFW Detection Service...');
 
 try {
@@ -33,7 +35,7 @@ try {
   });
   
   // Import the manuscript handler
-  const manuscriptHandler = require('./handlers/manuscripthandler');
+  const manuscriptHandler = require('./handlers/manuscriptHandler');
   
   // NSFW detection endpoint
   app.post('/api/manuscripts/check', upload.single('manuscript'), async (req, res) => {
